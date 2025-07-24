@@ -153,12 +153,13 @@ export default function HomeScreen() {
       try {
         const key = `highscore_${difficulty.label}`;
         const value = await AsyncStorage.getItem(key);
-        if (value !== null) {
+        if (value !== null && !isNaN(parseFloat(value))) {
           setHighScore(parseFloat(value));
         } else {
           setHighScore(null);
         }
       } catch (e) {
+        console.log('Error loading high score:', e);
         setHighScore(null);
       }
     };
@@ -193,32 +194,44 @@ export default function HomeScreen() {
     } catch { }
   };
 
-  // Load sounds on mount
+  // Load sounds on mount - with proper error handling
   useEffect(() => {
     let isMounted = true;
     const loadSounds = async () => {
+      // Skip sound loading for now since sound files don't exist
+      // This prevents errors on both PC and mobile
       try {
-        const { sound: loadedSuccess } = await Audio.Sound.createAsync(
-          require('../assets/sounds/success.wav')
-        );
-        if (isMounted) successSound.current = loadedSuccess;
+        // Commented out until sound files are added
+        // const { sound: loadedSuccess } = await Audio.Sound.createAsync(
+        //   require('../assets/sounds/success.wav')
+        // );
+        // if (isMounted) successSound.current = loadedSuccess;
+        successSound.current = null;
       } catch (e) {
+        console.log('Success sound not available:', e);
         successSound.current = null;
       }
       try {
-        const { sound: loadedError } = await Audio.Sound.createAsync(
-          require('../assets/sounds/error.wav')
-        );
-        if (isMounted) errorSound.current = loadedError;
+        // Commented out until sound files are added
+        // const { sound: loadedError } = await Audio.Sound.createAsync(
+        //   require('../assets/sounds/error.wav')
+        // );
+        // if (isMounted) errorSound.current = loadedError;
+        errorSound.current = null;
       } catch (e) {
+        console.log('Error sound not available:', e);
         errorSound.current = null;
       }
     };
     loadSounds();
     return () => {
       isMounted = false;
-      if (successSound.current) successSound.current.unloadAsync();
-      if (errorSound.current) errorSound.current.unloadAsync();
+      try {
+        if (successSound.current) successSound.current.unloadAsync();
+        if (errorSound.current) errorSound.current.unloadAsync();
+      } catch (e) {
+        console.log('Error unloading sounds:', e);
+      }
     };
   }, []);
 
@@ -278,21 +291,25 @@ export default function HomeScreen() {
     setLastGameTime(null);
   };
 
-  // Play feedback helpers
+  // Play feedback helpers - with proper error handling
   const playSuccessFeedback = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (successSound.current) {
-      try {
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (successSound.current) {
         await successSound.current.replayAsync();
-      } catch { }
+      }
+    } catch (e) {
+      console.log('Success feedback error:', e);
     }
   };
   const playErrorFeedback = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    if (errorSound.current) {
-      try {
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (errorSound.current) {
         await errorSound.current.replayAsync();
-      } catch { }
+      }
+    } catch (e) {
+      console.log('Error feedback error:', e);
     }
   };
 
@@ -497,17 +514,31 @@ export default function HomeScreen() {
     await AsyncStorage.setItem('chaosMode', val ? 'true' : 'false');
   };
 
-  // Share/copy logic
+  // Share/copy logic - with proper error handling
   const shareScore = async () => {
-    const text = `I played Number Click Challenge! Difficulty: ${difficulty.label}, Time: ${lastGameTime !== null ? lastGameTime.toFixed(1) : '--'}s${isDaily ? ` (Daily Challenge)` : ''}`;
-    if (await Sharing.isAvailableAsync()) {
-      // Write to a temp file
-      const fileUri = FileSystem.cacheDirectory + 'score.txt';
-      await FileSystem.writeAsStringAsync(fileUri, text);
-      await Sharing.shareAsync(fileUri, { dialogTitle: 'Share your score' });
-    } else {
-      await Clipboard.setStringAsync(text);
-      Alert.alert('Copied!', 'Score copied to clipboard.');
+    try {
+      const text = `I played Number Click Challenge! Difficulty: ${difficulty.label}, Time: ${lastGameTime !== null ? lastGameTime.toFixed(1) : '--'}s${isDaily ? ` (Daily Challenge)` : ''}`;
+
+      if (await Sharing.isAvailableAsync()) {
+        // Write to a temp file
+        const fileUri = FileSystem.cacheDirectory + 'score.txt';
+        await FileSystem.writeAsStringAsync(fileUri, text);
+        await Sharing.shareAsync(fileUri, { dialogTitle: 'Share your score' });
+      } else {
+        await Clipboard.setStringAsync(text);
+        Alert.alert('Copied!', 'Score copied to clipboard.');
+      }
+    } catch (error) {
+      console.log('Share error:', error);
+      // Fallback to clipboard
+      try {
+        const text = `I played Number Click Challenge! Difficulty: ${difficulty.label}, Time: ${lastGameTime !== null ? lastGameTime.toFixed(1) : '--'}s${isDaily ? ` (Daily Challenge)` : ''}`;
+        await Clipboard.setStringAsync(text);
+        Alert.alert('Copied!', 'Score copied to clipboard.');
+      } catch (clipboardError) {
+        console.log('Clipboard error:', clipboardError);
+        Alert.alert('Error', 'Unable to share or copy score.');
+      }
     }
   };
 
