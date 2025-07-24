@@ -6,10 +6,10 @@ import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+// Removed router import as it's not needed
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Button, Modal, ScrollView as RNScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Button, Dimensions, Modal, ScrollView as RNScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { shuffleArray } from '../utils/shuffle';
 
@@ -36,6 +36,26 @@ function getRandomFact() {
   return FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)];
 }
 
+// Responsive utilities
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isTablet = screenWidth >= 768;
+const isSmallPhone = screenWidth < 375;
+const isLargePhone = screenWidth >= 414;
+
+// Responsive functions
+const responsiveWidth = (percentage: number) => (screenWidth * percentage) / 100;
+const responsiveHeight = (percentage: number) => (screenHeight * percentage) / 100;
+const responsiveFont = (size: number) => {
+  if (isSmallPhone) return size * 0.9;
+  if (isTablet) return size * 1.2;
+  return size;
+};
+const responsiveSize = (size: number) => {
+  if (isSmallPhone) return size * 0.8;
+  if (isTablet) return size * 1.3;
+  return size;
+};
+
 export default function HomeScreen() {
   const [numbers, setNumbers] = useState<number[]>([]);
   const [currentNumber, setCurrentNumber] = useState(1);
@@ -46,7 +66,7 @@ export default function HomeScreen() {
   const [pressedNumber, setPressedNumber] = useState<number | null>(null);
   const scaleAnim = useRef<{ [key: number]: Animated.Value }>({}).current;
   const [leaderboard, setLeaderboard] = useState<number[]>([]);
-  const router = useRouter();
+  // Removed router reference as it's not needed
   const [showSummary, setShowSummary] = useState(false);
   const [lastGameTime, setLastGameTime] = useState<number | null>(null);
   const intervalRef = useRef<any>(null); // Use any for React Native compatibility
@@ -612,31 +632,49 @@ export default function HomeScreen() {
       <RNScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           alignItems: 'center',
-          paddingBottom: 32,
-          paddingTop: 16,
+          paddingBottom: responsiveSize(32),
+          paddingTop: responsiveHeight(isTablet ? 5 : 8), // Minimal padding since we have proper margin
+          paddingHorizontal: responsiveSize(16),
+          minHeight: screenHeight,
         }}
         keyboardShouldPersistTaps="handled"
+        style={{
+          flex: 1,
+          backgroundColor: 'transparent',
+          // Calculate proper margin to clear navbar completely
+          marginTop: isTablet ? 200 : isSmallPhone ? 180 : 190, // Increased values to ensure complete clearance
+        }}
       >
         {/* Fun Fact/Tip/Quote on Home Screen */}
         <View style={styles.funFactContainer}>
           <Text style={styles.funFactText}>{funFact}</Text>
         </View>
-        {/* In grid rendering, apply chaos mode and improved layout */}
-        <View style={[styles.grid, { width: Math.max(240, Math.ceil(Math.sqrt(difficulty.value)) * 72) }]}> {/* Responsive grid width */}
+        {/* Responsive Grid Layout */}
+        <View style={[styles.grid, {
+          width: responsiveWidth(isTablet ? 70 : isSmallPhone ? 95 : 85),
+          maxWidth: isTablet ? 600 : 400,
+          paddingHorizontal: responsiveSize(10)
+        }]}>
           {numbers.map((num, idx) => {
-            // Chaos mode: random shape/size
+            // Responsive button sizing
+            let baseSize = isTablet ? 80 : isSmallPhone ? 50 : 60;
             let shape = 'rounded';
-            let size = 60;
+            let size = baseSize;
+
             if (chaosMode) {
               const rand = (num * 31) % 3;
               shape = rand === 0 ? 'circle' : rand === 1 ? 'square' : 'rounded';
-              size = 48 + ((num * 13) % 32); // 48-80px
+              size = baseSize * 0.8 + ((num * 13) % (baseSize * 0.4)); // Dynamic sizing
             }
-            // Calculate columns for best fit
+
+            // Calculate responsive columns
             const columns = Math.ceil(Math.sqrt(difficulty.value));
-            const basis = 100 / columns;
+            const adjustedColumns = isTablet ? Math.min(columns + 2, 8) : columns;
+            const basis = 100 / adjustedColumns;
+            const buttonMargin = responsiveSize(4);
+
             return (
               <Animated.View
                 key={num}
@@ -645,13 +683,21 @@ export default function HomeScreen() {
                   flexBasis: `${basis}%`,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  maxWidth: 80,
+                  paddingHorizontal: buttonMargin / 2,
+                  paddingVertical: buttonMargin / 2,
+                  maxWidth: isTablet ? 100 : 80,
                 }}
               >
                 <TouchableOpacity
                   style={[
                     styles.numberButton,
-                    { backgroundColor: themeColors.button, borderRadius: shape === 'circle' ? 32 : shape === 'square' ? 8 : 18, width: size, height: size },
+                    {
+                      backgroundColor: themeColors.button,
+                      borderRadius: shape === 'circle' ? size / 2 : shape === 'square' ? 8 : 18,
+                      width: size,
+                      height: size,
+                      margin: buttonMargin
+                    },
                     num < currentNumber && { backgroundColor: themeColors.clickedButton },
                   ]}
                   onPress={() => !isCountingDown && handleNumberPress(num)}
@@ -659,7 +705,17 @@ export default function HomeScreen() {
                   disabled={isCountingDown}
                   accessibilityLabel={`Number ${num}`}
                 >
-                  <Text style={[styles.numberText, { color: themeColors.buttonText, fontFamily: 'SpaceMono', fontWeight: 'bold', fontSize: 24 }]}>{num}</Text>
+                  <Text style={[
+                    styles.numberText,
+                    {
+                      color: themeColors.buttonText,
+                      fontFamily: 'SpaceMono',
+                      fontWeight: 'bold',
+                      fontSize: responsiveFont(isTablet ? 28 : isSmallPhone ? 20 : 24)
+                    }
+                  ]}>
+                    {num}
+                  </Text>
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -792,11 +848,26 @@ export default function HomeScreen() {
                   <Ionicons name="ribbon" size={20} color="#fff" style={{ marginRight: 6 }} />
                   <Text style={styles.summaryActionText}>View Badges</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.summaryActionButton} onPress={() => {
-                  setShowSummary(false);
-                  setAborted(false);
-                  router.replace('/');
-                }} accessibilityLabel="Go to home">
+                <TouchableOpacity
+                  style={styles.summaryActionButton}
+                  onPress={() => {
+                    // Close the modal and reset game state
+                    setShowSummary(false);
+                    setAborted(false);
+
+                    // Reset game state completely
+                    setNumbers([]);
+                    setCurrentNumber(1);
+                    setElapsedTime(0);
+                    setTimerActive(false);
+
+                    // Add a small delay to ensure modal is closed before any state updates
+                    setTimeout(() => {
+                      // Any additional reset logic if needed
+                    }, 100);
+                  }}
+                  accessibilityLabel="Return to game"
+                >
                   <Ionicons name="home" size={20} color="#fff" style={{ marginRight: 6 }} />
                   <Text style={styles.summaryActionText}>Home</Text>
                 </TouchableOpacity>
@@ -928,8 +999,9 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 50,
+    paddingTop: responsiveHeight(6),
     alignItems: 'center',
+    paddingHorizontal: responsiveSize(10),
   },
   modalOverlay: {
     flex: 1,
@@ -1010,9 +1082,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+    paddingTop: responsiveHeight(isTablet ? 5 : 6),
+    paddingBottom: responsiveSize(12),
+    paddingHorizontal: responsiveSize(16),
   },
   navBarLeftSection: {
     flexDirection: 'row',
