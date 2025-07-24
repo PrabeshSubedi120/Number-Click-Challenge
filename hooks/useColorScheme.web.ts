@@ -1,21 +1,33 @@
 import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
 
-/**
- * To support static rendering, this value needs to be re-calculated on the client side for web
- */
+let globalColorScheme = 'light';
+let listeners: ((scheme: 'light' | 'dark') => void)[] = [];
+
 export function useColorScheme() {
-  const [hasHydrated, setHasHydrated] = useState(false);
+  const [colorScheme, setColorSchemeState] = useState(globalColorScheme);
 
   useEffect(() => {
-    setHasHydrated(true);
+    const listener = (scheme: 'light' | 'dark') => setColorSchemeState(scheme);
+    listeners.push(listener);
+    return () => {
+      listeners = listeners.filter(l => l !== listener);
+    };
   }, []);
 
-  const colorScheme = useRNColorScheme();
+  return colorScheme;
+}
 
-  if (hasHydrated) {
-    return colorScheme;
+export function setColorScheme(scheme: 'light' | 'dark') {
+  globalColorScheme = scheme;
+  listeners.forEach(l => l(scheme));
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('colorScheme', scheme);
   }
+}
 
-  return 'light';
+if (typeof window !== 'undefined' && window.localStorage) {
+  const stored = window.localStorage.getItem('colorScheme');
+  if (stored === 'light' || stored === 'dark') {
+    globalColorScheme = stored;
+  }
 }
